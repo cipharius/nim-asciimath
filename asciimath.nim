@@ -35,7 +35,7 @@ template exists*(node: AMNode): bool = node != nil
 proc `==`*(node: AMNode, kind: NodeKind): bool {.inline.} =
   node.exists and node.nKind == kind
 
-iterator items(node: AMNode): AMNode =
+iterator items*(node: AMNode): AMNode =
   var node = node
   while node.next != nil:
     node = node.next
@@ -311,6 +311,7 @@ proc parser*(tokens: seq[AMToken]): AMNode =
     nodes.delete(deleteList[i] - i)
 
 proc toLatex*(expression: AMNode): string =
+  ## Generate LaTeX expression from AMNode tree
   var openBrackets: seq[int] = @[]
   result = ""
 
@@ -347,7 +348,12 @@ proc toLatex*(expression: AMNode): string =
   if openBrackets.len > 0:
     result &= "}".repeat(openBrackets.len)
 
+template toLatex*(str: string): string =
+  ## Translate asciimath `str` to LaTeX
+  str.lexer().parser().toLaTeX()
+
 proc treeRepr*(expression: AMNode): string =
+  ## Print AMNode tree
   result = ""
   for node in expression:
     if node.depth > 1:
