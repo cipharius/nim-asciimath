@@ -32,14 +32,18 @@ type
 
 # AMNode procedures
 template exists*(node: AMNode): bool = node != nil
-proc `==`*(node: AMNode, kind: NodeKind): bool {.inline.} =
-  node.exists and node.nKind == kind
-
 iterator items*(node: AMNode): AMNode =
   var node = node
   while node.next != nil:
     node = node.next
     yield node
+
+iterator `^`(nodes: openArray[AMNode]): AMNode =
+  for i in 1..nodes.len:
+    yield nodes[^i]
+
+proc `==`*(node: AMNode, kind: NodeKind): bool {.inline.} =
+  node.exists and node.nKind == kind
 
 proc contains*(arr: set[NodeKind], node: AMNode): bool =
   result = false
@@ -49,6 +53,19 @@ proc contains*(arr: set[NodeKind], node: AMNode): bool =
 
 converter toNode(kind: NodeKind): AMNode = AMNode(nKind: kind)
 converter toNode(str: string): AMNode = AMNode(nKind: Token, token: str.toToken())
+converter toNode(token: AMToken): AMNode = AMNode(nKind: Token, token: token)
+
+template addSymbols(symbolStack: seq[AMNode], depth: int,
+                    symbols: varargs[AMNode, toNode]): untyped =
+  for symbol in ^symbols:
+    symbol.depth = depth
+    symbolStack.add(symbol)
+  for i in 1..symbols.len:
+    if i < symbols.len:
+      symbolStack[^i].nextSibling = symbolStack[^(i+1)]
+    if i > 1:
+      symbolStack[^i].prevSibling = symbolStack[^(i-1)]
+
 
 # OptionalSub procedure
 template addOptional(ruleStack: seq[OptionalSub], forNode: AMNode,
@@ -198,31 +215,13 @@ proc parser*(tokens: seq[AMToken]): AMNode =
 
         case token.tkKind
         of UNARY:
-          symbols.add(AMNode(nKind: Simple, depth: depth))
-          symbols.add(AMNode(nKind: Token, depth: depth, token: token))
-
-          symbols[^1].nextSibling = symbols[^2]
-          symbols[^2].prevSibling = symbols[^1]
+          symbols.addSymbols(depth, token, Simple)
         of BINARY:
-          symbols.add(AMNode(nKind: Simple, depth: depth))
-          symbols.add(AMNode(nKind: Simple, depth: depth))
-          symbols.add(AMNode(nKind: Token, depth: depth, token: token))
-
-          symbols[^1].nextSibling = symbols[^2]
-          symbols[^2].nextSibling = symbols[^3]
-          symbols[^3].prevSibling = symbols[^2]
-          symbols[^2].prevSibling = symbols[^1]
+          symbols.addSymbols(depth, token, Simple, Simple)
         of LEFTBRACKET:
-          symbols.add(AMNode(nKind: Token, depth: depth, token: (symbol: "", tex: "", tkKind: RIGHTBRACKET)))
-          symbols.add(AMNode(nKind: Expression, depth: depth))
-          symbols.add(AMNode(nKind: Token, depth: depth, token: token))
-
-          symbols[^1].nextSibling = symbols[^2]
-          symbols[^2].nextSibling = symbols[^3]
-          symbols[^3].prevSibling = symbols[^2]
-          symbols[^2].prevSibling = symbols[^1]
+          symbols.addSymbols(depth, token, (symbol:"", tex:"", tkKind:RIGHTBRACKET))
         else:
-          symbols.add(AMNode(nKind: Token, depth: depth, token: token))
+          symbols.addSymbols(depth, token)
       of Token:
         let
           symbol = symbols[^1]
