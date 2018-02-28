@@ -318,7 +318,7 @@ proc toLatex*(expression: AMNode): string =
   for node in expression:
     if openBrackets.len > 0 and node.depth <= openBrackets[^1]:
       discard openBrackets.pop()
-      result &= "}"
+      result &= '}' 
 
     case node.nKind
     of Superscript:
@@ -326,27 +326,30 @@ proc toLatex*(expression: AMNode): string =
         result &= r"\frac{"
         openBrackets.add(node.depth)
       elif node.prevSibling.exists:
-        result &= "{"
+        result &= '{'
         openBrackets.add(node.depth)
     of Simple:
       if node.prevSibling == Token:
-        result &= "{"
+        result &= '{'
         openBrackets.add(node.depth)
     of Token:
       if node.token != "/".toToken():
-        if node.token == LEFTBRACKET and node.prev in {Simple, Superscript}:
-          result &= "{"
-          openBrackets.add(node.depth)
-        elif node.token == RIGHTBRACKET and openBrackets.len > 0 and node.depth == openBrackets[^1]:
-          discard openBrackets.pop()
-          result &= "}"
+        case node.token.tkKind
+        of LEFTBRACKET:
+          if node.prev == Simple or node.prev == Superscript:
+            result &= '{'
+            openBrackets.add(node.depth)
+        of RIGHTBRACKET:
+          if openBrackets.len > 0 and node.depth == openBrackets[^1]:
+            discard openBrackets.pop()
+            result &= '}' 
         else:
-          result &= node.token.tex & " "
+          result &= node.token.tex & ' '
     else:
       discard
 
   if openBrackets.len > 0:
-    result &= "}".repeat(openBrackets.len)
+    result &= '}'.repeat(openBrackets.len)
 
 template toLatex*(str: string): string =
   ## Translate asciimath `str` to LaTeX
