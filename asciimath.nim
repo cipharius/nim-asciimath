@@ -1,5 +1,5 @@
 import unicode, strutils, os
-import asciimathTokens
+import asciimath.asciimathTokens
 
 type
   NodeKind* = enum
