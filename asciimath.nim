@@ -317,33 +317,40 @@ proc toLatex*(expression: AMNode): string =
   for node in expression:
     if openBrackets.len > 0 and node.depth <= openBrackets[^1]:
       discard openBrackets.pop()
-      result &= '}' 
+      result &= '}'
 
     case node.nKind
     of Superscript:
       if node.nextSibling.exists:
-        result &= r"\frac{"
+        result &= r"\frac{ "
         openBrackets.add(node.depth)
       elif node.prevSibling.exists:
-        result &= '{'
+        result &= "{ "
         openBrackets.add(node.depth)
     of Simple:
-      if node.prevSibling == Token:
-        result &= '{'
+      # Check if node is unary or binary argument
+      if node.prevSibling == Token or node.prevSibling.prevSibling == Token:
+        result &= "{ "
         openBrackets.add(node.depth)
     of Token:
       if node.token != "/".toToken():
         case node.token.tkKind
         of LEFTBRACKET:
           if node.prev == Simple or node.prev == Superscript:
-            result &= '{'
+            result &= "{ "
             openBrackets.add(node.depth)
         of RIGHTBRACKET:
           if openBrackets.len > 0 and node.depth == openBrackets[^1]:
             discard openBrackets.pop()
-            result &= '}' 
+            result &= '}'
         else:
-          result &= node.token.tex & ' '
+          var token = node.token
+
+          if token.symbol == "^" and node.prev == Fragment:
+            # Handle invalid `^` token nicely
+            token.tex = r"\text{\textasciicircum}"
+
+          result &= token.tex & ' '
     else:
       discard
 
