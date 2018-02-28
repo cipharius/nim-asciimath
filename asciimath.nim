@@ -33,7 +33,7 @@ type
 # AMNode procedures
 template exists*(node: AMNode): bool = node != nil
 proc `==`*(node: AMNode, kind: NodeKind): bool {.inline.} =
-  node != nil and node.nKind == kind
+  node.exists and node.nKind == kind
 
 iterator items(node: AMNode): AMNode =
   var node = node
