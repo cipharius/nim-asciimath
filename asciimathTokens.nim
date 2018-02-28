@@ -137,8 +137,8 @@ const AMTokens* = [
   (symbol:")", tex:r"\right)", tkKind:RIGHTBRACKET),
   (symbol:"[", tex:r"\left[", tkKind:LEFTBRACKET),
   (symbol:"]", tex:r"\right]", tkKind:RIGHTBRACKET),
-  (symbol:"{", tex:r"{", tkKind:LEFTBRACKET),
-  (symbol:"}", tex:r"}", tkKind:RIGHTBRACKET),
+  (symbol:"{", tex:r"\left\{", tkKind:LEFTBRACKET),
+  (symbol:"}", tex:r"\right\}", tkKind:RIGHTBRACKET),
   (symbol:"|", tex:r"|", tkKind:LEFTRIGHT),
   (symbol:":|:", tex:r"|", tkKind:CONST),
   (symbol:"|:", tex:r"\left|", tkKind:LEFTBRACKET),
@@ -147,15 +147,15 @@ const AMTokens* = [
   (symbol:":)", tex:r"\rangle", tkKind:RIGHTBRACKET),
   (symbol:"<<", tex:r"\langle", tkKind:LEFTBRACKET),
   (symbol:">>", tex:r"\rangle", tkKind:RIGHTBRACKET),
-  (symbol:"{:", tex:r"\left\{.", tkKind:LEFTBRACKET),
-  (symbol:":}", tex:r"\right\}.", tkKind:RIGHTBRACKET),
+  (symbol:"{:", tex:r"\left.", tkKind:LEFTBRACKET),
+  (symbol:":}", tex:r"\right.", tkKind:RIGHTBRACKET),
 
   #miscellaneous symbols
   (symbol:"int", tex:r"\int", tkKind:CONST),
-  (symbol:"dx", tex:r"{:d x:}", tkKind:DEFINITION),
-  (symbol:"dy", tex:r"{:d y:}", tkKind:DEFINITION),
-  (symbol:"dz", tex:r"{:d z:}", tkKind:DEFINITION),
-  (symbol:"dt", tex:r"{:d t:}", tkKind:DEFINITION),
+  # (symbol:"dx", tex:r"{:d x:}", tkKind:DEFINITION),
+  # (symbol:"dy", tex:r"{:d y:}", tkKind:DEFINITION),
+  # (symbol:"dz", tex:r"{:d z:}", tkKind:DEFINITION),
+  # (symbol:"dt", tex:r"{:d t:}", tkKind:DEFINITION),
   (symbol:"oint", tex:r"\oint", tkKind:CONST),
   (symbol:"del", tex:r"\partial", tkKind:CONST),
   (symbol:"grad", tex:r"\nabla", tkKind:CONST),
@@ -276,7 +276,7 @@ const AMTokens* = [
   (symbol:"mbox", tex:r"mbox", tkKind:TEXT),
   (symbol:"color", tex:r"color", tkKind:BINARY),
   (symbol:"cancel", tex:r"\not", tkKind:UNARY),
-  (symbol:"\"", tex:r"mbox", tkKind:TEXT),
+  # (symbol:"\"", tex:r"mbox", tkKind:TEXT),
   (symbol:"bb", tex:r"\mathbf", tkKind:UNARY),
   (symbol:"mathbf", tex:r"\mathbf", tkKind:UNARY),
   (symbol:"sf", tex:r"\mathsf", tkKind:UNARY),
@@ -291,10 +291,11 @@ const AMTokens* = [
   (symbol:"mathfrak", tex:r"\mathfrak", tkKind:UNARY)
 ]
 
-proc `==`*(a, b: AMToken): bool =
+proc `==`*(a, b: AMToken): bool {.inline.} =
   a.tkKind == b.tkKind and a.symbol == b.symbol
+proc `==`*(token: AMToken, kind: TokenKind): bool {.inline.} = token.tkKind == kind
 
-proc toToken*(str: string): AMToken {.compileTime.} =
+converter toToken*(str: string): AMToken =
   for token in AMTokens:
     if token.symbol == str:
       result = token

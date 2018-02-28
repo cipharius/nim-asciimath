@@ -1,7 +1,5 @@
-import unicode
-import strutils
+import unicode, strutils, os
 import asciimathTokens
-import os
 
 type
   NodeKind* = enum
@@ -20,16 +18,51 @@ type
     next, prev: AMNode
     nextSibling, prevSibling: AMNode
     depth: int
-  OptionalSub* = tuple
+  OptionalSubKind = enum
+    Optional
+    Repeatition
+  OptionalSub* = object
+    case kind: OptionalSubKind
+    of Optional:
+      token: AMToken
+      rules: seq[AMNode]
+    else:
+      discard
     node: AMNode
-    token: AMToken
-    rules: seq[AMNode]
 
-const
-  SubsTable = [Fragment, Superscript, Subscript, Simple, Token]
+# AMNode procedures
+template exists*(node: AMNode): bool = node != nil
+proc `==`*(node: AMNode, kind: NodeKind): bool {.inline.} =
+  node != nil and node.nKind == kind
 
-template exists(node: AMNode): bool = node != nil
+iterator items(node: AMNode): AMNode =
+  var node = node
+  while node.next != nil:
+    node = node.next
+    yield node
 
+proc contains*(arr: set[NodeKind], node: AMNode): bool =
+  result = false
+  for kind in arr:
+    if node == kind:
+      return true
+
+converter toNode(kind: NodeKind): AMNode = AMNode(nKind: kind)
+converter toNode(str: string): AMNode = AMNode(nKind: Token, token: str.toToken())
+
+# OptionalSub procedure
+template addOptional(ruleStack: seq[OptionalSub], forNode: AMNode,
+                     ruleTokens: varargs[AMNode, toNode]): untyped =
+  let rules = @ruleTokens
+  for rule in rules:
+    rule.depth = forNode.depth
+  ruleStack.add(OptionalSub(kind: Optional, node: forNode,
+                            token: ruleTokens[0].token, rules: rules))
+
+template addRepeatition(ruleStack: seq[OptionalSub], forNode: AMNode): untyped =
+  ruleStack.add(OptionalSub(kind: Repeatition, node: forNode))
+
+# Parser procedures
 proc skipWhitespace(str: string, pos: int = 0): int =
   ## Return position where whitespaces end
   result = pos
@@ -56,8 +89,19 @@ proc tokenAt(str: string, pos: int = 0): AMToken =
   if max_len > 0:
     return sym
 
-  # Create a new CONST symbol
-  if str[pos].isDigit:
+  # Create dynamic symbol
+  if str[pos] == '"':
+    var endPos = 0
+    for i in (pos+1)..<str.len:
+      if str[i] == '"':
+        endPos = i
+        break
+    if endPos > pos:
+      let text = str[pos..endPos]
+      return (symbol:text, tex:r"\text{$#}" % text[1..^2], tkKind:TEXT)
+    else:
+      return (symbol:($str[pos]), tex:($str[pos]), tkKind:CONST)
+  elif str[pos].isDigit:
     var number = ""
     for i in pos..<str.len:
       if str[i].isDigit:
@@ -95,6 +139,8 @@ proc `$`(node: AMNode): string =
     result &= "(prev: $#, next $#)" % [if prev.exists: $prev.nKind else: "nil",
                                        if next.exists: $next.nKind else: "nil"]
 
+  result &= ": " & $node.depth
+
 proc parser*(tokens: seq[AMToken]): AMNode =
   ## Generate parse tree from asciimath `tokens`.
   ##
@@ -123,44 +169,31 @@ proc parser*(tokens: seq[AMToken]): AMNode =
     noSub = false
 
     if symbols.len > 0:
+      let depth = symbols[^1].depth + 1
+
       case symbols[^1].nKind
       of Expression:
-        let depth = symbols[^1].depth + 1
-        nodes.add(symbols.pop())
+        let symbol = symbols.pop()
+        optional.addRepeatition(symbol)
+        nodes.add(symbol)
         symbols.add(AMNode(nKind: Fragment, depth: depth))
       of Fragment:
-        let depth = symbols[^1].depth + 1
         var node = AMNode(nKind: Superscript, depth: depth)
-        let
-          optToken = toToken("/")
-          rules: seq[AMNode] = @[AMNode(nKind: Token, depth: depth, token: optToken),
-                                 AMNode(nKind: Superscript, depth: depth)]
         nodes.add(symbols.pop())
         symbols.add(node)
-        optional.add((node: node, token: optToken, rules: rules))
+        optional.addOptional(node, "/", Superscript)
       of Superscript:
-        let depth = symbols[^1].depth + 1
         var node = AMNode(nKind: Subscript, depth: depth)
-        let
-          optToken = toToken("^")
-          rules: seq[AMNode] = @[AMNode(nKind: Token, depth: depth, token: optToken), AMNode(nKind: Simple, depth: depth)]
 
         nodes.add(symbols.pop())
         symbols.add(node)
-        optional.add((node: node, token: optToken, rules: rules))
+        optional.addOptional(node, "^", Simple)
       of Subscript:
-        let depth = symbols[^1].depth
-        var node = AMNode(nKind: Simple, depth: depth+1)
-        let
-          optToken = toToken("_")
-          rules: seq[AMNode] = @[AMNode(nKind: Token, depth: depth, token: optToken),
-                                 AMNode(nKind: Simple, depth: depth)]
-
+        var node = AMNode(nKind: Simple, depth: depth)
         nodes.add(symbols.pop())
         symbols.add(node)
-        optional.add((node: node, token: optToken, rules: rules))
+        optional.addOptional(node, "_", Simple)
       of Simple:
-        let depth = symbols[^1].depth + 1
         nodes.add(symbols.pop())
 
         case token.tkKind
@@ -199,25 +232,36 @@ proc parser*(tokens: seq[AMToken]): AMNode =
 
           if node.token.tkKind == RIGHTBRACKET:
             node.token = token
+            while optional[^1].kind != Repeatition:
+              discard optional.pop()
+            discard optional.pop()
 
           nodes.add(node)
           curToken.inc()
         else:
           noSub = true
+
+      if not noSub and nodes.len > 1:
+        nodes[^1].prev = nodes[^2]
+        nodes[^2].next = nodes[^1]
     else:
-      # No symbols in stack
       noSub = true
 
     if noSub:
-      if optional.len == 0:
-        var depth = 0
-        for i in 1..<symbols.len:
-          if symbols[^i].nKind == Expression:
-            depth = symbols[^i].depth + 1
-            break
-        symbols.add(AMNode(nKind: Fragment, depth: depth))
+      if optional[^1].kind == Repeatition:
+        let repeat = optional[^1]
+        var newFrag = AMNode(nKind: Fragment)
+        newFrag.depth = repeat.node.depth + 1
+
+        var node: AMNode = repeat.node.next
+        while node.nextSibling != nil:
+          node = node.nextSibling
+
+        newFrag.prevSibling = node
+        node.nextSibling = newFrag
+        symbols.add(newFrag)
       else:
-        while optional.len > 0:
+        while optional[^1].kind != Repeatition:
           var optRule = optional.pop()
           if optRule.token == token:
             var prev: AMNode = nil
@@ -238,38 +282,40 @@ proc parser*(tokens: seq[AMToken]): AMNode =
   # Collapse tree and create references
   var prev: AMNode = nil
   var collapsed: int = 0
-  for node in nodes:
+  var lastDepth = 0
+  var deleteList: seq[int] = @[]
+  for i, node in nodes:
     if prev != nil:
       case node.nKind
       of Superscript, Subscript, Simple:
-        if node.nextSibling != nil or node.prevSibling != nil:
-          node.prev = prev
-          prev.next = node
-          prev = node
-        else:
+        if not (node.nextSibling.exists or node.prevSibling.exists):
           collapsed.inc()
+          lastDepth = node.depth
+          deleteList.add(i)
+          continue
       else:
-        node.prev = prev
-        prev.next = node
-        prev = node
-    else:
-      prev = node
+        discard
 
-iterator items(node: AMNode): AMNode =
-  var node = node
-  while node.next != nil:
-    node = node.next
-    yield node
+      node.prev = prev
+      prev.next = node
 
+      if node.prevSibling.exists:
+        node.depth = node.prevSibling.depth
+      elif node.depth > node.prev.depth:
+        node.depth = node.prev.depth + 1
+
+    prev = node
+    lastDepth = node.depth
+
+  for i in 0..<deleteList.len:
+    nodes.delete(deleteList[i] - i)
 
 proc toLatex*(expression: AMNode): string =
-  var prevDepth = 0
   var openBrackets: seq[int] = @[]
   result = ""
 
   for node in expression:
-    if prevDepth > node.depth and openBrackets.len > 0 and
-       openBrackets[^1] >= node.depth:
+    if openBrackets.len > 0 and node.depth <= openBrackets[^1]:
       discard openBrackets.pop()
       result &= "}"
 
@@ -281,17 +327,22 @@ proc toLatex*(expression: AMNode): string =
       elif node.prevSibling.exists:
         result &= "{"
         openBrackets.add(node.depth)
-    # of Subscript:
-    #   if node.nextSibling.exists and node.next.nKind != Token:
-    #     result &= "{"
-    #     openBrackets.add(node.depth)
+    of Simple:
+      if node.prevSibling == Token:
+        result &= "{"
+        openBrackets.add(node.depth)
     of Token:
       if node.token != "/".toToken():
-        result &= node.token.tex
+        if node.token == LEFTBRACKET and node.prev in {Simple, Superscript}:
+          result &= "{"
+          openBrackets.add(node.depth)
+        elif node.token == RIGHTBRACKET and openBrackets.len > 0 and node.depth == openBrackets[^1]:
+          discard openBrackets.pop()
+          result &= "}"
+        else:
+          result &= node.token.tex & " "
     else:
       discard
-
-    prevDepth = node.depth
 
   if openBrackets.len > 0:
     result &= "}".repeat(openBrackets.len)
