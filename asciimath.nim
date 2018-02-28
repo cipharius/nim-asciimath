@@ -354,9 +354,3 @@ proc treeRepr*(expression: AMNode): string =
       result &= "  ".repeat(node.depth - 1)
     result &= $node
     result &= "\n"
-
-when isMainModule:
-  let tokens = lexer(paramStr(1))
-  let tree = parser(tokens)
-  echo tree.toLatex()
-  echo tree.treeRepr()
