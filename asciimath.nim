@@ -59,7 +59,7 @@ template addOptional(ruleStack: seq[OptionalSub], forNode: AMNode,
   ruleStack.add(OptionalSub(kind: Optional, node: forNode,
                             token: ruleTokens[0].token, rules: rules))
 
-template addRepeatition(ruleStack: seq[OptionalSub], forNode: AMNode): untyped =
+template addRepeat(ruleStack: seq[OptionalSub], forNode: AMNode): untyped =
   ruleStack.add(OptionalSub(kind: Repeatition, node: forNode))
 
 # Parser procedures
@@ -174,7 +174,7 @@ proc parser*(tokens: seq[AMToken]): AMNode =
       case symbols[^1].nKind
       of Expression:
         let symbol = symbols.pop()
-        optional.addRepeatition(symbol)
+        optional.addRepeat(symbol)
         nodes.add(symbol)
         symbols.add(AMNode(nKind: Fragment, depth: depth))
       of Fragment:
