@@ -44,6 +44,8 @@ iterator `^`(nodes: openArray[AMNode]): AMNode =
 
 proc `==`*(node: AMNode, kind: NodeKind): bool {.inline.} =
   node.exists and node.nKind == kind
+proc `==`*(node: AMNode, kind: TokenKind): bool {.inline.} =
+  node.exists and node.nKind == Token and node.token.tkKind == kind
 
 proc contains*(arr: set[NodeKind], node: AMNode): bool =
   result = false
@@ -316,35 +318,38 @@ proc toLatex*(expression: AMNode): string =
   result = ""
 
   for node in expression:
-    if openBrackets.len > 0 and node.depth <= openBrackets[^1]:
+    if openBrackets.len > 0 and node.depth < openBrackets[^1]:
       discard openBrackets.pop()
       result &= '}'
 
     case node.nKind
     of Superscript:
       if node.nextSibling.exists:
-        result &= r"\frac{ "
+        result &= r"\frac{"
         openBrackets.add(node.depth)
       elif node.prevSibling.exists:
-        result &= "{ "
-        openBrackets.add(node.depth)
+        result &= "}{"
     of Simple:
       # Check if node is unary or binary argument
       let prevSibling = node.prevSibling
-      if prevSibling.exists and (prevSibling == Token or prevSibling.prevSibling == Token):
-        result &= "{ "
+      if prevSibling.exists and (prevSibling == UNARY or prevSibling.prevSibling == BINARY):
+        result &= "{"
         openBrackets.add(node.depth)
     of Token:
       if node.token != "/".toToken():
         case node.token.tkKind
         of LEFTBRACKET:
           if node.prev == Simple or node.prev == Superscript:
-            result &= "{ "
+            result &= "{"
             openBrackets.add(node.depth)
+          else:
+            result &= node.token.tex
         of RIGHTBRACKET:
           if openBrackets.len > 0 and node.depth == openBrackets[^1]:
             discard openBrackets.pop()
             result &= '}'
+          else:
+            result &= node.token.tex
         else:
           var token = node.token
 
@@ -352,7 +357,11 @@ proc toLatex*(expression: AMNode): string =
             # Handle invalid `^` token nicely
             token.tex = r"\text{\textasciicircum}"
 
-          result &= token.tex & ' '
+          result &= token.tex
+
+          if node.next == Fragment:
+            result &= ' '
+
     else:
       discard
 
