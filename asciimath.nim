@@ -191,9 +191,9 @@ proc parser*(tokens: seq[AMToken]): AMNode =
       case symbols[^1].nKind
       of Expression:
         let symbol = symbols.pop()
-        optional.addRepeat(symbol)
         nodes.add(symbol)
-        symbols.add(AMNode(nKind: Fragment, depth: depth))
+        symbols.addSymbols(depth, Fragment)
+        optional.addRepeat(symbol)
       of Fragment:
         var node = AMNode(nKind: Superscript, depth: depth)
         nodes.add(symbols.pop())
@@ -219,7 +219,8 @@ proc parser*(tokens: seq[AMToken]): AMNode =
         of BINARY:
           symbols.addSymbols(depth, token, Simple, Simple)
         of LEFTBRACKET:
-          symbols.addSymbols(depth, token, (symbol:"", tex:"", tkKind:RIGHTBRACKET))
+          symbols.addSymbols(depth, token, Expression,
+                             (symbol:"", tex:"", tkKind:RIGHTBRACKET))
         else:
           symbols.addSymbols(depth, token)
       of Token:
@@ -329,7 +330,8 @@ proc toLatex*(expression: AMNode): string =
         openBrackets.add(node.depth)
     of Simple:
       # Check if node is unary or binary argument
-      if node.prevSibling == Token or node.prevSibling.prevSibling == Token:
+      let prevSibling = node.prevSibling
+      if prevSibling.exists and (prevSibling == Token or prevSibling.prevSibling == Token):
         result &= "{ "
         openBrackets.add(node.depth)
     of Token:
