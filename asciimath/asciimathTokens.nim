@@ -257,9 +257,9 @@ const AMTokens* = [
   (symbol:"root", tex:r"\sqrt", tkKind:BINARY), # TODO special case: \sqrt[n]{...}
   (symbol:"frac", tex:r"\frac", tkKind:BINARY),
   (symbol:"/", tex:r"/", tkKind:INFIX),
-  (symbol:"stackrel", tex:r"stackrel", tkKind:BINARY),
-  (symbol:"overset", tex:r"stackrel", tkKind:BINARY),
-  (symbol:"underset", tex:r"stackrel", tkKind:BINARY),
+  (symbol:"stackrel", tex:r"\stackrel", tkKind:BINARY),
+  (symbol:"overset", tex:r"\overset", tkKind:BINARY),
+  (symbol:"underset", tex:r"\underset", tkKind:BINARY),
   (symbol:"_",  tex:r"_", tkKind:INFIX),
   (symbol:"^",  tex:r"^", tkKind:INFIX),
   (symbol:"hat", tex:r"\hat", tkKind:UNARY),
